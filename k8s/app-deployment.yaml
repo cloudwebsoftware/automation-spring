@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: automationspring-app
+  namespace: automationspring
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: automationspring
+  template:
+    metadata:
+      labels:
+        app: automationspring
+    spec:
+      containers:
+      - name: automationspring
+        image: automation-spring:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:mysql://mysql.automationspring.svc.cluster.local:3306/automationdb?createDatabaseIfNotExist=true&amp;useSSL=false&amp;serverTimezone=UTC&amp;allowPublicKeyRetrieval=true"
+        - name: SPRING_DATASOURCE_USERNAME
+          value: "root"
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: "anoopmanav202"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: automationspring-service
+  namespace: automationspring
+spec:
+  selector:
+    app: automationspring
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: LoadBalancer
+
