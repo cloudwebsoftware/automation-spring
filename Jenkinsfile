@@ -20,14 +20,14 @@ pipeline {
 
         stage('Build (Maven)') {
             steps {
-                bat 'mvn clean package -DskipTests'
+                sh 'mvn clean package -DskipTests'
             }
         }
 
         stage('Docker Build') {
             steps {
                 script {
-                    bat "docker build -t ${DOCKER_IMAGE}:${env.BUILD_ID} ."
+                    sh "docker build -t ${DOCKER_IMAGE}:${env.BUILD_ID} ."
                 }
             }
         }
@@ -35,18 +35,38 @@ pipeline {
         stage('Docker Push') {
             steps {
                 script {
-                    bat "docker login -u anoopdubey -p YOUR_TOKEN"
-                    bat "docker push ${DOCKER_IMAGE}:${env.BUILD_ID}"
-                    bat "docker tag ${DOCKER_IMAGE}:${env.BUILD_ID} ${DOCKER_IMAGE}:latest"
-                    bat "docker push ${DOCKER_IMAGE}:latest"
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-hub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh """
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            docker push ${DOCKER_IMAGE}:${env.BUILD_ID}
+                            docker tag ${DOCKER_IMAGE}:${env.BUILD_ID} ${DOCKER_IMAGE}:latest
+                            docker push ${DOCKER_IMAGE}:latest
+                        """
+                    }
                 }
             }
         }
 
         stage('Kubernetes Deploy') {
             steps {
-                bat "kubectl apply -f k8s/"
+                sh """
+                    sed -i 's|IMAGE_PLACEHOLDER|${DOCKER_IMAGE}:${env.BUILD_ID}|g' k8s/app-deployment.yaml
+                    kubectl apply -f k8s/
+                """
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Build & Deployment Successful"
+        }
+        failure {
+            echo "❌ Pipeline Failed"
         }
     }
 }
