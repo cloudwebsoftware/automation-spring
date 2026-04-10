@@ -1,27 +1,33 @@
 pipeline {
     agent any
-    
-     environment {
+
+    tools {
+        maven 'Maven'
+    }
+
+    environment {
         GIT_URL = 'https://github.com/cloudwebsoftware/automation-spring.git'
+        DOCKER_IMAGE = 'anoopdubey/automation-spring'
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 git branch: 'main', url: "${GIT_URL}"
             }
         }
 
-        stage('Maven Build') {
+        stage('Build (Maven)') {
             steps {
-                sh 'mvn clean install -DskipTests'
+                bat 'mvn clean package -DskipTests'
             }
         }
 
         stage('Docker Build') {
             steps {
                 script {
-                    def image = docker.build("automation-spring:${env.BUILD_ID}")
+                    bat "docker build -t ${DOCKER_IMAGE}:${env.BUILD_ID} ."
                 }
             }
         }
@@ -29,22 +35,18 @@ pipeline {
         stage('Docker Push') {
             steps {
                 script {
-                    docker.withRegistry('https://registry.hub.docker.com', 'docker-hub-credentials') {
-                        docker.image("automation-spring:${env.BUILD_ID}").push('latest')
-                        docker.image("automation-spring:${env.BUILD_ID}").push()
-                    }
+                    bat "docker login -u anoopdubey -p YOUR_TOKEN"
+                    bat "docker push ${DOCKER_IMAGE}:${env.BUILD_ID}"
+                    bat "docker tag ${DOCKER_IMAGE}:${env.BUILD_ID} ${DOCKER_IMAGE}:latest"
+                    bat "docker push ${DOCKER_IMAGE}:latest"
                 }
             }
         }
 
         stage('Kubernetes Deploy') {
             steps {
-                sh """
-                    sed -i 's/automation-spring:latest/automation-spring:${env.BUILD_ID}/g' k8s/app-deployment.yaml
-                    kubectl apply -f k8s/ -n automationspring
-                """
+                bat "kubectl apply -f k8s/"
             }
         }
     }
 }
-
